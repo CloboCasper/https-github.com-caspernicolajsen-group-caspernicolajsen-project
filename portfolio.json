@@ -1,0 +1,19 @@
+[
+    {
+        "ticker": "NOVO-B.CO",
+        "shares": 15.0,
+        "buy_price": 326.05
+    },
+    {
+        "ticker": "VRT",
+        "shares": 8.0,
+        "buy_price": 309.94,
+        "currency": "USD"
+    },
+    {
+        "ticker": "NVDA",
+        "shares": 15.0,
+        "buy_price": 197.13,
+        "currency": "USD"
+    }
+]
