@@ -299,15 +299,26 @@ with tab2:
         st.markdown("---")
         analyze_btn = st.button("Analyser", type="primary", use_container_width=True)
 
-    if analyze_btn or ticker:
-        with st.spinner(f"Analyserer {ticker}..."):
-            df, signal_data = process_stock(ticker, period, user_buy_price=user_buy_price)
+    # Gem den valgte ticker i session_state når der trykkes Analyser
+    if "current_analysis" not in st.session_state:
+        st.session_state.current_analysis = None
+        
+    if analyze_btn:
+        st.session_state.current_analysis = {"ticker": ticker, "period": period, "user_buy_price": user_buy_price}
+
+    if st.session_state.current_analysis:
+        ana_ticker = st.session_state.current_analysis["ticker"]
+        ana_period = st.session_state.current_analysis["period"]
+        ana_ubp = st.session_state.current_analysis["user_buy_price"]
+        
+        with st.spinner(f"Analyserer {ana_ticker}..."):
+            df, signal_data = process_stock(ana_ticker, ana_period, user_buy_price=ana_ubp)
             
             if df is None:
-                st.error(f"Kunne ikke finde data for {ticker}. Prøv en anden ticker.")
+                st.error(f"Kunne ikke finde data for {ana_ticker}. Prøv en anden ticker.")
             else:
                 with col2:
-                    st.subheader(f"Analyse for {ticker}")
+                    st.subheader(f"Analyse for {ana_ticker}")
                     
                     # --- Resultat Panel ---
                     score = signal_data['score']
