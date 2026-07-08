@@ -163,31 +163,30 @@ def generate_signal(df, user_buy_price=0.0):
     reasoning_text = "\n".join(reasons) + f"\n\n**Samlet Vurdering:** {summary}"
     
     # Beregn Risk Management Targets 
-    # Vises altid for at give brugeren et referencepunkt
     targets = None
     if pd.notna(latest['ATR']):
         atr = latest['ATR']
         is_custom = user_buy_price > 0
         
-        if is_custom:
-            buy_price = user_buy_price
+        # Hvis brugeren IKKE har indtastet en egen købspris, og signalet er et Sælg-signal,
+        # giver det ingen mening at anbefale en "Købs-opsætning" med Take-Profit.
+        if not is_custom and scaled_score < 0:
+            targets = None
         else:
-            # Algoritmens Anbefalede Limit-køb:
-            # Prøv at købe ved den korte trend (SMA20) for at undgå at købe toppen af et pludseligt ryk opad.
-            # Ligger prisen allerede under SMA20, køber vi til dagens aktuelle pris.
-            sma_20 = latest['SMA_20'] if pd.notna(latest['SMA_20']) else latest['Close']
-            buy_price = min(latest['Close'], sma_20)
-        
-        stop_loss = buy_price - (1.5 * atr)
-        take_profit = buy_price + (3.0 * atr)
-        
-        targets = {
-            "buy_price": buy_price,
-            "stop_loss": stop_loss,
-            "take_profit": take_profit,
-            "atr": atr,
-            "is_custom": is_custom
-        }
+            if is_custom:
+                buy_price = user_buy_price
+            else:
+                # Algoritmens Anbefalede Limit-køb (KUN for positive/neutrale signaler)
+                sma_20 = latest['SMA_20'] if pd.notna(latest['SMA_20']) else latest['Close']
+                buy_price = min(latest['Close'], sma_20)
+            
+            targets = {
+                "buy_price": buy_price,
+                "stop_loss": buy_price - (1.5 * atr),
+                "take_profit": buy_price + (3.0 * atr),
+                "atr": atr,
+                "is_custom": is_custom
+            }
     
     return {
         "score": score,
