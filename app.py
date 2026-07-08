@@ -6,12 +6,64 @@ import portfolio
 import requests
 import os
 
-API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
+API_URL = os.environ.get("API_URL", "https://casper-aktie-api-123.onrender.com")
 
 st.set_page_config(page_title="Aktie Analyse Algoritme", layout="wide", page_icon="📈")
 
 # ==========================================
-# SEKTION 0: JURIDISK POPUP
+# SEKTION 0: BRUGER LOGIN & GÆST (SIDEBAR)
+# ==========================================
+st.sidebar.title("🔐 Din Konto")
+
+if "user_token" not in st.session_state:
+    st.session_state.user_token = None
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "guest_portfolio" not in st.session_state:
+    st.session_state.guest_portfolio = []
+
+if st.session_state.user_token:
+    st.sidebar.success("Du er logget ind! 🚀")
+    if st.sidebar.button("Log Ud"):
+        st.session_state.user_token = None
+        st.session_state.user_id = None
+        st.rerun()
+else:
+    auth_mode = st.sidebar.radio("Vælg", ["Gæst", "Log Ind", "Opret Bruger"])
+    
+    if auth_mode in ["Log Ind", "Opret Bruger"]:
+        with st.sidebar.form("auth_form"):
+            email = st.text_input("Email")
+            password = st.text_input("Adgangskode", type="password")
+            submitted = st.form_submit_button(auth_mode)
+            
+            if submitted:
+                if auth_mode == "Opret Bruger":
+                    try:
+                        res = requests.post(f"{API_URL}/api/register", json={"email": email, "password": password})
+                        if res.status_code == 200:
+                            st.success("Bruger oprettet! Log ind nu.")
+                        else:
+                            st.error(res.json().get("detail", "Fejl ved oprettelse"))
+                    except Exception as e:
+                        st.error(str(e))
+                elif auth_mode == "Log Ind":
+                    try:
+                        res = requests.post(f"{API_URL}/api/login", json={"email": email, "password": password})
+                        if res.status_code == 200:
+                            data = res.json()
+                            st.session_state.user_token = data["access_token"]
+                            st.session_state.user_id = data["user_id"]
+                            st.rerun()
+                        else:
+                            st.error(res.json().get("detail", "Forkert login"))
+                    except Exception as e:
+                        st.error(str(e))
+    else:
+        st.sidebar.info("Du kigger med som Gæst. Dine aktier gemmes ikke i skyen.")
+
+# ==========================================
+# SEKTION 0.5: JURIDISK POPUP
 # ==========================================
 if "accepted_terms" not in st.session_state:
     st.session_state.accepted_terms = False
@@ -69,6 +121,62 @@ st.title("📈 AI Teknisk Aktie Analyse & Portefølje")
 tab1, tab2, tab3, tab4 = st.tabs(["💼 Min Portefølje", "🔍 Analyse & Nyheder", "🌍 Markedsoverblik", "📖 Læring & Guide"])
 
 # ==========================================
+# PORTEFØLJE FUNKTIONER
+# ==========================================
+def fetch_and_analyze_portfolio():
+    if st.session_state.user_token:
+        # Hent fra Supabase via API
+        headers = {"Authorization": f"Bearer {st.session_state.user_token}"}
+        try:
+            res = requests.get(f"{API_URL}/api/portfolio", headers=headers)
+            if res.status_code == 200:
+                positions = res.json()
+            else:
+                return []
+        except:
+            return []
+    else:
+        # Gæste mode
+        positions = st.session_state.guest_portfolio
+        
+    if not positions:
+        return []
+        
+    # Analyser via API
+    try:
+        # Convert DB positions to PositionRequest format
+        payload = [{"ticker": p["ticker"], "shares": p["shares"], "buy_price": p["buy_price"], "currency": p["currency"]} for p in positions]
+        res = requests.post(f"{API_URL}/api/portfolio/analyze", json=payload)
+        if res.status_code == 200:
+            return res.json()
+    except:
+        pass
+    return []
+
+def add_position_logic(ticker, shares, buy_price, currency):
+    if st.session_state.user_token:
+        headers = {"Authorization": f"Bearer {st.session_state.user_token}"}
+        payload = {"ticker": ticker, "shares": shares, "buy_price": buy_price, "currency": currency}
+        requests.post(f"{API_URL}/api/portfolio", json=payload, headers=headers)
+    else:
+        for p in st.session_state.guest_portfolio:
+            if p["ticker"].upper() == ticker.upper():
+                p["shares"] = shares
+                p["buy_price"] = buy_price
+                p["currency"] = currency
+                return
+        st.session_state.guest_portfolio.append({
+            "ticker": ticker.upper(), "shares": shares, "buy_price": buy_price, "currency": currency
+        })
+
+def remove_position_logic(ticker):
+    if st.session_state.user_token:
+        headers = {"Authorization": f"Bearer {st.session_state.user_token}"}
+        requests.delete(f"{API_URL}/api/portfolio/{ticker}", headers=headers)
+    else:
+        st.session_state.guest_portfolio = [p for p in st.session_state.guest_portfolio if p["ticker"].upper() != ticker.upper()]
+
+# ==========================================
 # TAB 1: PORTEFØLJE
 # ==========================================
 with tab1:
@@ -88,11 +196,11 @@ with tab1:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Gem Position", use_container_width=True):
                 if p_ticker:
-                    portfolio.add_position(p_ticker, p_shares, p_price, p_currency)
+                    add_position_logic(p_ticker, p_shares, p_price, p_currency)
                     st.success(f"Tilføjet {p_ticker} til porteføljen!")
                     st.rerun()
 
-    analyzed_portfolio = portfolio.analyze_portfolio()
+    analyzed_portfolio = fetch_and_analyze_portfolio()
 
     if not analyzed_portfolio:
         st.info("Din portefølje er tom. Tilføj din første aktie ovenfor.")
@@ -105,15 +213,17 @@ with tab1:
                 col_a.metric("Nuværende Kurs", f"{pos['current_price']:.2f} {pos['currency']}")
                 col_b.metric("Din Købskurs", f"{pos['buy_price']:.2f} {pos['currency']}")
                 
-                if pos['stop_loss'] and pos['take_profit']:
-                    col_sl.metric("Stop Loss", f"{pos['stop_loss']:.1f}")
+                if pos['take_profit']:
                     col_tp.metric("Take Profit", f"{pos['take_profit']:.1f}")
                 else:
-                    col_sl.metric("Stop Loss", "N/A")
                     col_tp.metric("Take Profit", "N/A")
                     
-                col_c.metric("Afkast (%)", f"{pos['profit_loss_pct']:.2f} %", f"{pos['profit_loss_pct']:.2f} %")
-                col_d.metric("Værdi", f"{pos['current_value']:.2f} {pos['currency']}", f"{pos['profit_loss']:.2f} {pos['currency']}")
+                profit_loss = (pos['current_price'] - pos['buy_price']) * pos['shares']
+                profit_loss_pct = ((pos['current_price'] - pos['buy_price']) / pos['buy_price']) * 100
+                current_value = pos['current_price'] * pos['shares']
+                    
+                col_c.metric("Afkast (%)", f"{profit_loss_pct:.2f} %", f"{profit_loss_pct:.2f} %")
+                col_d.metric("Værdi", f"{current_value:.2f} {pos['currency']}", f"{profit_loss:.2f} {pos['currency']}")
                 
                 # Actions Box
                 bg_color = "#2e7d32" # Mørkegrøn (Hold)
@@ -133,7 +243,7 @@ with tab1:
                 """, unsafe_allow_html=True)
                 
                 if st.button(f"🗑️ Slet {pos['ticker']}", key=f"del_{pos['ticker']}"):
-                    portfolio.remove_position(pos['ticker'])
+                    remove_position_logic(pos['ticker'])
                     st.rerun()
                     
                 st.markdown("---")
