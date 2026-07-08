@@ -8,15 +8,10 @@ from ta.volatility import AverageTrueRange
 def get_stock_data(ticker, period="2y"):
     """
     Henter historisk data for en given aktie ticker via yfinance.
-    Henter minimum 2 år for at kunne beregne SMA200 korrekt.
     """
     try:
         stock = yf.Ticker(ticker)
-        fetch_period = period
-        if period in ["6mo", "1y"]:
-            fetch_period = "2y"
-            
-        df = stock.history(period=fetch_period)
+        df = stock.history(period=period)
         if df.empty:
             return None
             
@@ -56,25 +51,23 @@ def calculate_indicators(df):
 
 def generate_signal(df, user_buy_price=0.0):
     """
-    Point-system (Max +5 / Min -5):
-    1. Makro Trend (SMA200): +2 / -2
-    2. Mellem Trend (SMA50): +1 / -1
-    3. Momentum (MACD): +1 / -1
-    4. Klogere RSI: +1 (Buy the dip i uptrend) / -1 (Ekstremt overkøbt)
+    Point-system skaleret til at fungere uden lang historik.
     """
-    if df is None or len(df) < 200:
+    if df is None or len(df) < 14:
         latest_close = df.iloc[-1]['Close'] if df is not None and not df.empty else 0.0
-        return {"score": 0, "signal": "Neutral", "reasoning": "Ikke nok data til en pålidelig analyse (kræver >200 dage).", "targets": None, "latest_close": latest_close}
+        return {"score": 0, "signal": "Neutral", "reasoning": "Ikke nok data til overhovedet at beregne basale indikatorer (kræver >14 dage).", "targets": None, "latest_close": latest_close}
         
     latest = df.iloc[-1]
     
     score = 0
+    max_possible_score = 0
     reasons = []
     
     is_macro_uptrend = False
     
     # 1. Makro Trend Analyse (SMA200)
     if pd.notna(latest['SMA_200']):
+        max_possible_score += 2
         if latest['Close'] > latest['SMA_200']:
             score += 2
             is_macro_uptrend = True
@@ -82,18 +75,24 @@ def generate_signal(df, user_buy_price=0.0):
         else:
             score -= 2
             reasons.append("🔴 Prisen er under det lange 200-dages snit (Svag makro-trend).")
+    else:
+        reasons.append("⚪ Data-historik for kort til 200-dages glidende gennemsnit.")
 
     # 2. Mellem Trend Analyse (SMA50)
     if pd.notna(latest['SMA_50']):
+        max_possible_score += 1
         if latest['Close'] > latest['SMA_50']:
             score += 1
             reasons.append("🟢 Prisen er over 50-dages snittet (Positiv mellemlang trend).")
         else:
             score -= 1
             reasons.append("🔴 Prisen er under 50-dages snittet (Negativ mellemlang trend).")
+    else:
+        reasons.append("⚪ Data-historik for kort til 50-dages glidende gennemsnit.")
             
     # 3. Momentum Analyse (MACD)
     if pd.notna(latest['MACD']) and pd.notna(latest['MACD_Signal']):
+        max_possible_score += 1
         if latest['MACD'] > latest['MACD_Signal']:
             score += 1
             reasons.append("🟢 MACD ligger over sin signallinje (Bullish momentum).")
@@ -103,6 +102,7 @@ def generate_signal(df, user_buy_price=0.0):
 
     # 4. Klogere RSI Analyse ("Buy the dip")
     if pd.notna(latest['RSI']):
+        max_possible_score += 1
         if latest['RSI'] > 75:
             score -= 1
             reasons.append(f"🔴 RSI er meget høj ({latest['RSI']:.0f}). Aktien er ekstremt overkøbt.")
@@ -115,22 +115,28 @@ def generate_signal(df, user_buy_price=0.0):
         else:
             reasons.append(f"🟡 RSI er {latest['RSI']:.0f} (Neutral zone).")
 
-    # Konklusion baseret på samlet score
-    if score >= 4:
+    # Skalér scoren så den passer til den gamle 5-punkts skala
+    if max_possible_score > 0:
+        scaled_score = (score / max_possible_score) * 5
+    else:
+        scaled_score = 0
+
+    # Konklusion baseret på skaleret score
+    if scaled_score >= 4:
         signal = "STÆRK KØB"
-        summary = "Aktien er i en solid opadgående trend, og momentum er med dig."
-    elif score >= 2:
+        summary = "Aktien/ETF'en viser overordnet stærk fremgang ift. den valgte tidsperiode."
+    elif scaled_score >= 2:
         signal = "KØB"
-        summary = "Den generelle trend er positiv. Et godt tidspunkt at akkumulere på."
-    elif score >= 0:
+        summary = "Trenden er generelt positiv for den valgte horisont."
+    elif scaled_score >= 0:
         signal = "NEUTRAL / HOLD"
-        summary = "Markedet er ubeslutsomt, eller aktien er ved at konsolidere. Hold øje med retningen."
-    elif score >= -2:
+        summary = "Markedet er ubeslutsomt, eller aktivet konsoliderer."
+    elif scaled_score >= -2:
         signal = "SÆLG"
-        summary = "Trenden er vendt til det negative, eller momentum er forsvundet."
+        summary = "Trenden er vendt til det negative på den valgte horisont."
     else:
         signal = "STÆRK SÆLG"
-        summary = "Alle væsentlige trends og momentum-indikatorer peger nedad. Høj risiko."
+        summary = "Alle aktive indikatorer peger nedad. Høj risiko ift. den valgte horisont."
         
     reasoning_text = "\n".join(reasons) + f"\n\n**Samlet Vurdering:** {summary}"
     
