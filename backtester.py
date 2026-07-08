@@ -6,36 +6,49 @@ def run_backtest(df):
     Kører en forsimplet backtest baseret på en daglig vurdering af indikatorerne,
     nu opdateret til at matche det nye SMA200 "buy the dip" pointsystem.
     """
-    if df is None or len(df) < 200:
+    if df is None or len(df) < 14:
         return None
         
     df = df.copy()
     
-    # Byg score-kolonner (vektoriseret for fart)
+    # Byg score-kolonner (vektoriseret for fart) og skalér ligesom analyzer
+    max_score = np.zeros(len(df))
+    score = np.zeros(len(df))
     
-    # 1. Makro Trend (SMA200): +2 hvis over, -2 hvis under
-    score_sma200 = np.where(df['Close'] > df['SMA_200'], 2, -2)
+    # 1. Makro Trend (SMA200)
+    has_sma200 = df['SMA_200'].notna()
+    max_score = np.where(has_sma200, max_score + 2, max_score)
+    score = np.where(has_sma200 & (df['Close'] > df['SMA_200']), score + 2, score)
+    score = np.where(has_sma200 & (df['Close'] <= df['SMA_200']), score - 2, score)
     
-    # 2. Mellem Trend (SMA50): +1 hvis over, -1 hvis under
-    score_sma50 = np.where(df['Close'] > df['SMA_50'], 1, -1)
+    # 2. Mellem Trend (SMA50)
+    has_sma50 = df['SMA_50'].notna()
+    max_score = np.where(has_sma50, max_score + 1, max_score)
+    score = np.where(has_sma50 & (df['Close'] > df['SMA_50']), score + 1, score)
+    score = np.where(has_sma50 & (df['Close'] <= df['SMA_50']), score - 1, score)
     
-    # 3. Momentum (MACD): +1 hvis over signal, -1 hvis under
-    score_macd = np.where(df['MACD'] > df['MACD_Signal'], 1, -1)
+    # 3. Momentum (MACD)
+    has_macd = df['MACD'].notna() & df['MACD_Signal'].notna()
+    max_score = np.where(has_macd, max_score + 1, max_score)
+    score = np.where(has_macd & (df['MACD'] > df['MACD_Signal']), score + 1, score)
+    score = np.where(has_macd & (df['MACD'] <= df['MACD_Signal']), score - 1, score)
     
     # 4. Klogere RSI ("Buy the dip" i uptrend)
-    is_macro_uptrend = df['Close'] > df['SMA_200']
+    has_rsi = df['RSI'].notna()
+    max_score = np.where(has_rsi, max_score + 1, max_score)
     
-    # Default 0
+    is_macro_uptrend = has_sma200 & (df['Close'] > df['SMA_200'])
+    
     score_rsi = np.zeros(len(df))
-    # Hvis ekstremt overkøbt
-    score_rsi = np.where(df['RSI'] > 75, -1, score_rsi)
-    # Hvis uptrend og "dip" (< 50)
-    score_rsi = np.where(is_macro_uptrend & (df['RSI'] < 50), 1, score_rsi)
-    # Hvis downtrend og decideret oversolgt (< 30)
-    score_rsi = np.where(~is_macro_uptrend & (df['RSI'] < 30), 1, score_rsi)
+    score_rsi = np.where(has_rsi & (df['RSI'] > 75), -1, score_rsi)
+    score_rsi = np.where(has_rsi & is_macro_uptrend & (df['RSI'] < 50), 1, score_rsi)
+    score_rsi = np.where(has_rsi & ~is_macro_uptrend & (df['RSI'] < 30), 1, score_rsi)
     
-    # Samlet score per dag
-    df['Total_Score'] = score_sma200 + score_sma50 + score_macd + score_rsi
+    score = score + score_rsi
+    
+    # Skalér til 5-punkts skala
+    scaled_score = np.where(max_score > 0, (score / max_score) * 5, 0)
+    df['Total_Score'] = scaled_score
     
     # Strategi: 
     # Køb (position = 1) når score >= 2
