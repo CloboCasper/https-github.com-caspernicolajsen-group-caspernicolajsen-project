@@ -259,14 +259,25 @@ with tab2:
     with col1:
         search_query = st.text_input("Søg (fx 'Novo' eller 'AAPL')", value="Novo")
         
-        # Søgefunktion der rækker ud til API
+        # Søgefunktion der rækker ud til Yahoo Finance
         search_results = []
         if len(search_query) > 1:
             try:
-                res = requests.get(f"{API_URL}/api/search?q={search_query}")
-                search_results = res.json()
-            except:
-                pass
+                url = "https://query2.finance.yahoo.com/v1/finance/search"
+                params = {"q": search_query, "quotesCount": 8, "newsCount": 0}
+                headers = {"User-Agent": "Mozilla/5.0"}
+                res = requests.get(url, params=params, headers=headers, timeout=3)
+                if res.status_code == 200:
+                    data = res.json()
+                    quotes = data.get("quotes", [])
+                    for quote in quotes:
+                        if quote.get("quoteType") in ["EQUITY", "ETF", "MUTUALFUND", "INDEX"]:
+                            search_results.append({
+                                "symbol": quote.get("symbol"),
+                                "name": quote.get("shortname", quote.get("longname", quote.get("symbol")))
+                            })
+            except Exception as e:
+                st.error(f"Søgefejl: {e}")
                 
         ticker_options = [f"{r['name']} ({r['symbol']})" for r in search_results]
         selected_ticker_label = st.selectbox("Vælg Aktie/Krypto", ticker_options) if ticker_options else None
