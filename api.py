@@ -1,15 +1,28 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from pydantic import BaseModel
 import pandas as pd
 import json
 import math
 from typing import List, Optional
+import os
+from supabase import create_client, Client
 
 from analyzer import process_stock
 from backtester import run_backtest
 import portfolio
 
 app = FastAPI(title="Aktie Analyse API")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+class AuthRequest(BaseModel):
+    email: str
+    password: str
 
 class PositionRequest(BaseModel):
     ticker: str
@@ -99,23 +112,16 @@ def analyze_portfolio_endpoint(positions: List[PositionRequest]):
             if signal_data['score'] <= -2:
                 action = "SÆLG (Dårlig Trend)"
                 action_color = "red"
-            
-        # P/L udregning
-        current_value = latest_close * shares
-        invested_value = buy_price * shares
-        profit_loss = current_value - invested_value
-        profit_loss_pct = ((latest_close - buy_price) / buy_price) * 100
-        
+            else:
+                action = "HOLD (God Trend)"
+                action_color = "green"
+
         analyzed.append({
             "ticker": ticker,
-            "shares": shares,
             "buy_price": buy_price,
+            "shares": shares,
             "currency": currency,
             "current_price": latest_close,
-            "current_value": current_value,
-            "profit_loss": profit_loss,
-            "profit_loss_pct": profit_loss_pct,
-            "stop_loss": targets['stop_loss'] if targets else None,
             "take_profit": targets['take_profit'] if targets else None,
             "action": action,
             "action_color": action_color,
@@ -208,6 +214,85 @@ def market_overview():
         "losers": fetch_screener('day_losers'),
         "active": fetch_screener('most_actives')
     }
+
+# --- SUPABASE AUTH & PORTFOLIO ENDPOINTS ---
+
+@app.post("/api/register")
+def register(req: AuthRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        response = supabase.auth.sign_up({"email": req.email, "password": req.password})
+        if response.user:
+            return {"message": "Success", "user_id": response.user.id}
+        else:
+            raise HTTPException(status_code=400, detail="Kunne ikke oprette bruger")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/login")
+def login(req: AuthRequest):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        response = supabase.auth.sign_in_with_password({"email": req.email, "password": req.password})
+        return {"access_token": response.session.access_token, "user_id": response.user.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Forkert email eller adgangskode")
+
+def get_user_id(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Manglende token")
+    token = authorization.replace("Bearer ", "")
+    try:
+        user_response = supabase.auth.get_user(token)
+        return user_response.user.id
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Ugyldigt token")
+
+@app.get("/api/portfolio")
+def get_portfolio(user_id: str = Depends(get_user_id)):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        response = supabase.table("portfolios").select("*").eq("user_id", user_id).execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/portfolio")
+def save_position(pos: PositionRequest, user_id: str = Depends(get_user_id)):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        existing = supabase.table("portfolios").select("*").eq("user_id", user_id).eq("ticker", pos.ticker.upper()).execute()
+        if len(existing.data) > 0:
+            supabase.table("portfolios").update({
+                "shares": pos.shares,
+                "buy_price": pos.buy_price,
+                "currency": pos.currency
+            }).eq("user_id", user_id).eq("ticker", pos.ticker.upper()).execute()
+        else:
+            supabase.table("portfolios").insert({
+                "user_id": user_id,
+                "ticker": pos.ticker.upper(),
+                "shares": pos.shares,
+                "buy_price": pos.buy_price,
+                "currency": pos.currency
+            }).execute()
+        return {"message": "Success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/portfolio/{ticker}")
+def delete_position(ticker: str, user_id: str = Depends(get_user_id)):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        supabase.table("portfolios").delete().eq("user_id", user_id).eq("ticker", ticker.upper()).execute()
+        return {"message": "Success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

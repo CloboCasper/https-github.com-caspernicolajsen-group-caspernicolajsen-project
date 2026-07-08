@@ -134,9 +134,9 @@ def generate_signal(df, user_buy_price=0.0):
     reasoning_text = "\n".join(reasons) + f"\n\n**Samlet Vurdering:** {summary}"
     
     # Beregn Risk Management Targets 
-    # Vises hvis algoritmen siger Køb ELLER hvis brugeren har indtastet sin egen kurs
+    # Vises altid for at give brugeren et referencepunkt
     targets = None
-    if (score >= 0 or user_buy_price > 0) and pd.notna(latest['ATR']):
+    if pd.notna(latest['ATR']):
         atr = latest['ATR']
         is_custom = user_buy_price > 0
         
