@@ -63,7 +63,8 @@ def generate_signal(df, user_buy_price=0.0):
     4. Klogere RSI: +1 (Buy the dip i uptrend) / -1 (Ekstremt overkøbt)
     """
     if df is None or len(df) < 200:
-        return {"score": 0, "signal": "Neutral", "reasoning": "Ikke nok data til en pålidelig analyse (kræver >200 dage).", "targets": None}
+        latest_close = df.iloc[-1]['Close'] if df is not None and not df.empty else 0.0
+        return {"score": 0, "signal": "Neutral", "reasoning": "Ikke nok data til en pålidelig analyse (kræver >200 dage).", "targets": None, "latest_close": latest_close}
         
     latest = df.iloc[-1]
     
