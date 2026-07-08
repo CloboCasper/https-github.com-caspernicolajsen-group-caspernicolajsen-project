@@ -84,49 +84,49 @@ def generate_signal(df, user_buy_price=0.0):
         if latest['Close'] > latest['SMA_200']:
             score += 2
             is_macro_uptrend = True
-            reasons.append("🟢 Prisen er over det lange 200-dages snit (Stærk makro-trend).")
+            reasons.append("🟢 **Langsigtet Trend (200 perioder):** Prisen ligger over sit lange gennemsnit. Dette betyder, at den langsigtede underliggende trend er stærkt opadgående, og store investorer akkumulerer.")
         else:
             score -= 2
-            reasons.append("🔴 Prisen er under det lange 200-dages snit (Svag makro-trend).")
+            reasons.append("🔴 **Langsigtet Trend (200 perioder):** Prisen ligger under sit lange gennemsnit. Dette er et advarselssignal om, at den langsigtede trend er vendt til negativ, og markedet strukturelt trækker sig ud.")
     else:
-        reasons.append("⚪ Data-historik for kort til 200-dages glidende gennemsnit.")
+        reasons.append("⚪ **Langsigtet Trend:** Historikken er for kort til at udregne det lange (200) glidende gennemsnit.")
 
     # 2. Mellem Trend Analyse (SMA50)
     if pd.notna(latest['SMA_50']):
         max_possible_score += 1
         if latest['Close'] > latest['SMA_50']:
             score += 1
-            reasons.append("🟢 Prisen er over 50-dages snittet (Positiv mellemlang trend).")
+            reasons.append("🟢 **Mellemlang Trend (50 perioder):** Prisen ligger over det 50-perioders snit, hvilket indikerer et sundt, positivt momentum over de seneste måneder/uger.")
         else:
             score -= 1
-            reasons.append("🔴 Prisen er under 50-dages snittet (Negativ mellemlang trend).")
+            reasons.append("🔴 **Mellemlang Trend (50 perioder):** Prisen ligger under det 50-perioders snit, hvilket betyder, at den seneste tids momentum har været faldende og svagt.")
     else:
-        reasons.append("⚪ Data-historik for kort til 50-dages glidende gennemsnit.")
+        reasons.append("⚪ **Mellemlang Trend:** Historikken er for kort til at udregne det mellemlange (50) glidende gennemsnit.")
             
     # 3. Momentum Analyse (MACD)
     if pd.notna(latest['MACD']) and pd.notna(latest['MACD_Signal']):
         max_possible_score += 1
         if latest['MACD'] > latest['MACD_Signal']:
             score += 1
-            reasons.append("🟢 MACD ligger over sin signallinje (Bullish momentum).")
+            reasons.append("🟢 **Købekraft (MACD):** MACD-linjen har krydset op over sin signallinje. Dette betyder, at køberne lige nu dominerer markedet (Bullish momentum).")
         else:
             score -= 1
-            reasons.append("🔴 MACD ligger under sin signallinje (Bearish momentum).")
+            reasons.append("🔴 **Salgs pres (MACD):** MACD-linjen ligger under sin signallinje. Sælgerne har overtaget, og der er kortsigtet pres på prisen (Bearish momentum).")
 
     # 4. Klogere RSI Analyse ("Buy the dip")
     if pd.notna(latest['RSI']):
         max_possible_score += 1
         if latest['RSI'] > 75:
             score -= 1
-            reasons.append(f"🔴 RSI er meget høj ({latest['RSI']:.0f}). Aktien er ekstremt overkøbt.")
+            reasons.append(f"🔴 **Overkøbt (RSI = {latest['RSI']:.0f}):** Aktien er blevet købt ekstremt hurtigt op. Dette betyder oftest, at en korrektion eller et 'pullback' er nært forestående.")
         elif is_macro_uptrend and latest['RSI'] < 50:
             score += 1
-            reasons.append(f"🟢 RSI er {latest['RSI']:.0f}. Dette ligner et sundt 'dip' i en stærk opadgående trend (Købsmulighed).")
+            reasons.append(f"🟢 **Køb i dykket (RSI = {latest['RSI']:.0f}):** Aktien er i en langsigtet opadgående trend, men er kortsigtet faldet tilbage (et 'dip'). Dette er ofte en ideel købsmulighed, før trenden fortsætter op.")
         elif not is_macro_uptrend and latest['RSI'] < 30:
             score += 1
-            reasons.append(f"🟢 RSI er under 30 ({latest['RSI']:.0f}). Aktien er oversolgt og kan bounce.")
+            reasons.append(f"🟢 **Oversolgt (RSI = {latest['RSI']:.0f}):** Selvom trenden er negativ, er aktien nu blevet 'straffet' så hårdt og hurtigt, at en modreaktion (bounce) er meget sandsynlig.")
         else:
-            reasons.append(f"🟡 RSI er {latest['RSI']:.0f} (Neutral zone).")
+            reasons.append(f"🟡 **Neutral Zone (RSI = {latest['RSI']:.0f}):** Hverken overkøbt eller oversolgt. RSI indikerer en sund balance mellem købere og sælgere.")
 
     # Skalér scoren så den passer til den gamle 5-punkts skala
     if max_possible_score > 0:

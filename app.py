@@ -378,11 +378,15 @@ with tab2:
                     st.divider()
                     st.subheader("Tillids-test af Algoritmen (Backtest)")
                     
-                    with st.expander("ℹ️ Hvorfor en tillids-test? (Sådan læser du grafen)", expanded=True):
+                    with st.expander("ℹ️ Sådan forstår du grafen (Hvorfor er den grønne linje flad?)", expanded=True):
                         st.markdown("""
-                        Denne graf viser **ikke** dine personlige tab/gevinster. Den viser algoritmens "CV" på den specifikke aktie de sidste par år.
-                        * **Kan du stole på et Køb-signal i dag?** Ja, hvis algoritmen har slået markedet historisk!
-                        * **Hvorfor er den grønne linje helt flad nogle steder?** Fordi algoritmen opdagede en farlig nedtur og "solgte" aktien. Mens den grønne linje ligger fladt, ligger dine penge sikkert i kontanter.
+                        Denne graf viser **ikke** dine personlige tab/gevinster, men viser i stedet: *Hvad ville der være sket med dine penge, hvis du fulgte algoritmens signaler slavisk?*
+                        
+                        * 📉 **Den Grå Linje (Køb-og-Hold):** Viser hvordan aktien rent faktisk har svinget op og ned i den valgte periode.
+                        * 📈 **Det Grønne Område (Algoritmen):** Viser hvordan dine penge ville være vokset (eller faldet) ved at bruge algoritmen.
+                        
+                        **Hvorfor er det grønne område nogle gange helt fladt på 0%?**
+                        Når algoritmen ser en negativ trend, "sælger" den aktien. Mens det grønne område er fladt, har du ganske vist 0% i afkast, men du **undgår også at miste penge** i store fald! Hvis den grå linje falder -40%, og den grønne linje ligger fladt på 0%, har algoritmen i praksis reddet dig fra et kæmpe tab. Et fladt grønt område under en krise er algoritmens største styrke.
                         """)
                         
                     bt_results = run_backtest(df)
