@@ -8,10 +8,23 @@ from ta.volatility import AverageTrueRange
 def get_stock_data(ticker, period="2y"):
     """
     Henter historisk data for en given aktie ticker via yfinance.
+    Justerer intervallet afhængigt af perioden for at have nok datapunkter (minimum >20 rækker).
     """
     try:
         stock = yf.Ticker(ticker)
-        df = stock.history(period=period)
+        
+        # Bestem det optimale interval
+        interval = "1d"
+        if period == "1d":
+            interval = "5m" # 5-minutters candles for en dag (~78 rækker pr. dag)
+        elif period == "1wk":
+            interval = "15m" # 15-min candles for en uge (~130 rækker)
+        elif period == "1mo":
+            interval = "1h" # 1-times candles for en måned (~150 rækker)
+        elif period == "3mo":
+            interval = "1d" # Daglige candles for 3 mdr (~60 rækker)
+            
+        df = stock.history(period=period, interval=interval)
         if df.empty:
             return None
             

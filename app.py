@@ -286,7 +286,11 @@ with tab2:
         if selected_ticker_label:
             ticker = selected_ticker_label.split("(")[-1].replace(")", "")
             
-        period = st.selectbox("Periode", ["6mo", "1y", "2y", "5y"], index=1)
+        period = st.selectbox("Periode", ["1d", "1wk", "1mo", "3mo", "6mo", "1y", "2y", "5y"], index=5)
+        
+        if period in ["1d", "1wk", "1mo", "3mo"]:
+            st.warning("⚠️ **Kort Horisont:** Jo kortere en periode der vælges, desto mere kortsigtet (og usikker) er algoritmens trend-analyse. Den reagerer lynhurtigt på små pris-ændringer.")
+        
         
         st.markdown("---")
         st.markdown("**Valgfri: Egen Risk Management**")
