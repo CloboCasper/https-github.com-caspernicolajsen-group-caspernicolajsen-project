@@ -42,23 +42,32 @@ def calculate_indicators(df):
         
     close_prices = df['Close']
     
+    # Initialiser kolonner med NaN for at undgå KeyError i UI
+    for col in ['SMA_20', 'SMA_50', 'SMA_200', 'RSI', 'MACD', 'MACD_Signal', 'MACD_Hist', 'ATR']:
+        df[col] = np.nan
+        
+    n = len(df)
+    
     # Simple Moving Averages (SMA)
-    df['SMA_20'] = SMAIndicator(close=close_prices, window=20).sma_indicator()
-    df['SMA_50'] = SMAIndicator(close=close_prices, window=50).sma_indicator()
-    df['SMA_200'] = SMAIndicator(close=close_prices, window=200).sma_indicator()
+    if n >= 20:
+        df['SMA_20'] = SMAIndicator(close=close_prices, window=20).sma_indicator()
+    if n >= 50:
+        df['SMA_50'] = SMAIndicator(close=close_prices, window=50).sma_indicator()
+    if n >= 200:
+        df['SMA_200'] = SMAIndicator(close=close_prices, window=200).sma_indicator()
     
-    # Relative Strength Index (RSI)
-    df['RSI'] = RSIIndicator(close=close_prices, window=14).rsi()
+    # RSI & ATR kræver min 14 perioder
+    if n >= 14:
+        df['RSI'] = RSIIndicator(close=close_prices, window=14).rsi()
+        atr = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
+        df['ATR'] = atr.average_true_range()
     
-    # Moving Average Convergence Divergence (MACD)
-    macd = MACD(close=close_prices, window_slow=26, window_fast=12, window_sign=9)
-    df['MACD'] = macd.macd()
-    df['MACD_Signal'] = macd.macd_signal()
-    df['MACD_Hist'] = macd.macd_diff()
-    
-    # Average True Range (ATR) - Volatilitet
-    atr = AverageTrueRange(high=df['High'], low=df['Low'], close=df['Close'], window=14)
-    df['ATR'] = atr.average_true_range()
+    # MACD kræver min 26 perioder
+    if n >= 26:
+        macd = MACD(close=close_prices, window_slow=26, window_fast=12, window_sign=9)
+        df['MACD'] = macd.macd()
+        df['MACD_Signal'] = macd.macd_signal()
+        df['MACD_Hist'] = macd.macd_diff()
     
     return df
 
