@@ -264,7 +264,7 @@ with tab2:
         if len(search_query) > 1:
             try:
                 url = "https://query2.finance.yahoo.com/v1/finance/search"
-                params = {"q": search_query, "quotesCount": 8, "newsCount": 0}
+                params = {"q": search_query, "quotesCount": 25, "newsCount": 0}
                 headers = {"User-Agent": "Mozilla/5.0"}
                 res = requests.get(url, params=params, headers=headers, timeout=3)
                 if res.status_code == 200:
