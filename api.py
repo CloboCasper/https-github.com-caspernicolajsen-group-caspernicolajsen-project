@@ -11,7 +11,35 @@ from analyzer import process_stock
 from backtester import run_backtest
 import portfolio
 
+import requests
+
 app = FastAPI(title="Aktie Analyse API")
+
+@app.get("/api/search")
+def search_ticker(q: str):
+    try:
+        url = "https://query2.finance.yahoo.com/v1/finance/search"
+        params = {"q": q, "quotesCount": 8, "newsCount": 0}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(url, params=params, headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            quotes = data.get("quotes", [])
+            results = []
+            for quote in quotes:
+                # Filtrer irrelevante resultater fra og gem ETFs/Aktier
+                if quote.get("quoteType") in ["EQUITY", "ETF", "MUTUALFUND", "INDEX"]:
+                    results.append({
+                        "symbol": quote.get("symbol"),
+                        "name": quote.get("shortname", quote.get("longname", quote.get("symbol"))),
+                        "type": quote.get("quoteType"),
+                        "exchange": quote.get("exchange")
+                    })
+            return results
+        return []
+    except Exception as e:
+        print(f"Søgefejl: {e}")
+        return []
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
