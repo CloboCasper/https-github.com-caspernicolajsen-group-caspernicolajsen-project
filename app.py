@@ -328,10 +328,12 @@ with tab2:
                     elif score <= -2: color = "#c62828"
                     else: color = "#f57c00"
                         
+                    currency_str = signal_data.get('currency', '')
+                    
                     st.markdown(f"""
                     <div style="background-color: {color}; padding: 20px; border-radius: 10px; color: white; text-align: center;">
                         <h2>{signal} (Samlet Score: {score}/5)</h2>
-                        <p style="font-size: 1.2rem;">Seneste Lukkepris: {signal_data['latest_close']:.2f}</p>
+                        <p style="font-size: 1.2rem;">Seneste Lukkepris: {signal_data['latest_close']:.2f} {currency_str}</p>
                     </div>
                     """, unsafe_allow_html=True)
                     
@@ -346,9 +348,9 @@ with tab2:
                         
                         label_buy = "Din Købskurs" if targets['is_custom'] else "Anbefalet Købskurs"
                         
-                        t1.metric(label_buy, f"{targets['buy_price']:.2f}")
-                        t2.metric("Stop-Loss", f"{targets['stop_loss']:.2f}", f"{sl_pct:.1f}%", delta_color="inverse")
-                        t3.metric("Take-Profit", f"{targets['take_profit']:.2f}", f"+{tp_pct:.1f}%", delta_color="normal")
+                        t1.metric(label_buy, f"{targets['buy_price']:.2f} {currency_str}")
+                        t2.metric("Stop-Loss", f"{targets['stop_loss']:.2f} {currency_str}", f"{sl_pct:.1f}%", delta_color="inverse")
+                        t3.metric("Take-Profit", f"{targets['take_profit']:.2f} {currency_str}", f"+{tp_pct:.1f}%", delta_color="normal")
                         
                         info_text = "💡 **Personlig Risk/Reward**" if targets['is_custom'] else "💡 **System Risk/Reward**"
                         st.info(f"{info_text}: Handlen risikerer {abs(sl_pct):.1f}% for at vinde {tp_pct:.1f}%.")

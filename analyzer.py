@@ -26,12 +26,22 @@ def get_stock_data(ticker, period="2y"):
             
         df = stock.history(period=period, interval=interval)
         if df.empty:
-            return None
+            return None, ""
             
-        return df
+        # Sikr mod "NaN" lukkepriser fra Yahoo's live-feed
+        df = df.dropna(subset=['Close'])
+        if df.empty:
+            return None, ""
+            
+        try:
+            currency = stock.fast_info.currency
+        except:
+            currency = ""
+            
+        return df, currency
     except Exception as e:
         print(f"Fejl ved hentning af data for {ticker}: {e}")
-        return None
+        return None, ""
 
 def calculate_indicators(df):
     """
@@ -200,10 +210,11 @@ def process_stock(ticker, period="2y", user_buy_price=0.0):
     """
     Kører hele flowet for en aktie og returnerer dataframe samt signal.
     """
-    df = get_stock_data(ticker, period)
+    df, currency = get_stock_data(ticker, period)
     if df is not None:
         df = calculate_indicators(df)
         signal_data = generate_signal(df, user_buy_price)
+        signal_data['currency'] = currency
         
         if period == "6mo":
             cutoff_date = df.index[-1] - pd.Timedelta(days=180)
